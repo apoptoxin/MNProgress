@@ -29,13 +29,18 @@
     subView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.8];
     subView.layer.cornerRadius = 10.0f;
     subView.layer.masksToBounds = YES;
-    [subView startAnimationWithProgress:self.progress completion:^(BOOL finish) {
-        
-    }];
+    [self testProcessWithView:subView];
     
 //    [subView startAnimationWithCountDown:3.0 completion:^(BOOL finish) {
 //        
 //    }];
+}
+
+- (void)testProcessWithView:(MNCircleProgressView*)subView {
+    self.progress.completedUnitCount = 0;
+    [subView startAnimationWithProgress:self.progress completion:^(BOOL finish) {
+        [self testProcessWithView:subView];
+    }];
 }
 -(void)task{
     //完成任务单元数+1

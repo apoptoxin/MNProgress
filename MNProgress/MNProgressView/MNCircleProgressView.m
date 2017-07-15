@@ -58,6 +58,7 @@
 }
 
 - (void)startAnimationWithProgress:(NSProgress *)progress completion:(MNProgressCompletionBlock)completion{
+    [self.curProgress removeObserver:self forKeyPath:@"fractionCompleted"];
     self.completion = completion;
     self.curProgress = progress;
     [self _reloadFrontCircleLayerWithStrokeEnd:0.0f];
@@ -70,7 +71,9 @@
     if (new >= 1.0f) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             if (self.completion) {
-                self.completion(true);
+                MNProgressCompletionBlock completion = [self.completion copy];
+                self.completion = nil;
+                completion(true);
             }
         });
     }
@@ -94,8 +97,10 @@
 #pragma mark - CAAnimationDelegate
 - (void)animationDidStop:(CABasicAnimation *)anim finished:(BOOL)flag {
     if ([anim.toValue isEqual:@(1.0)]) {
-        if (self.completion != nil) {
-            self.completion(flag);
+        if (self.completion) {
+            MNProgressCompletionBlock completion = [self.completion copy];
+            self.completion = nil;
+            completion(flag);
         }
     }
 }
