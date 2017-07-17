@@ -24,16 +24,18 @@
     
     
     MNCircleProgressView *subView = [[MNCircleProgressView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)];
+//    subView.fillColor = [UIColor redColor];
     subView.center = self.view.center;
     [self.view addSubview:subView];
     subView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.8];
     subView.layer.cornerRadius = 10.0f;
     subView.layer.masksToBounds = YES;
-    [self testProcessWithView:subView];
-    
-//    [subView startAnimationWithCountDown:3.0 completion:^(BOOL finish) {
-//        
-//    }];
+//    [self testProcessWithView:subView];
+    subView.gradient = YES;
+    subView.fillColors = [NSArray arrayWithObjects:[UIColor redColor], [UIColor yellowColor], [UIColor greenColor], nil];
+    [subView startAnimationWithCountDown:3.0 completion:^(BOOL finish) {
+        
+    }];
 }
 
 - (void)testProcessWithView:(MNCircleProgressView*)subView {

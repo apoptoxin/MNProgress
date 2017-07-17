@@ -27,9 +27,13 @@
 #import "MNCircleProgressView.h"
 
 #define kRadiusProportion 0.8
+#define kCircleLineWidth 3.0f
 
 @interface MNCircleProgressView()<CAAnimationDelegate>
-@property (nonatomic, strong) CAShapeLayer *frontCircleLayer;
+@property (nonatomic, strong) CAShapeLayer *maskLayer;
+@property (nonatomic, strong) CAGradientLayer *leftCircleLayer;
+@property (nonatomic, strong) CAGradientLayer *rightCircleLayer;
+@property (nonatomic, strong) CALayer *circleLayer;
 @property (nonatomic, strong) NSProgress *curProgress;
 @property (nonatomic, copy) MNProgressCompletionBlock completion;
 @end
@@ -45,7 +49,7 @@
 
 - (void)startAnimationWithCountDown:(CGFloat)countDown completion:(MNProgressCompletionBlock)completion{
     self.completion = completion;
-    [self _reloadFrontCircleLayerWithStrokeEnd:1.0f];
+    [self _reloadCircleLayerWithStrokeEnd:1.0f];
     CABasicAnimation *animation = [CABasicAnimation animation];
     animation.keyPath = @"strokeEnd";
     animation.fromValue = @(0.0f);
@@ -54,20 +58,20 @@
     animation.duration = countDown;
     animation.delegate = self;
     //apply animation to layer
-    [self.frontCircleLayer addAnimation:animation forKey:@"strokeEnd"];
+    [self.maskLayer addAnimation:animation forKey:@"strokeEnd"];
 }
 
 - (void)startAnimationWithProgress:(NSProgress *)progress completion:(MNProgressCompletionBlock)completion{
     [self.curProgress removeObserver:self forKeyPath:@"fractionCompleted"];
     self.completion = completion;
     self.curProgress = progress;
-    [self _reloadFrontCircleLayerWithStrokeEnd:0.0f];
+    [self _reloadCircleLayerWithStrokeEnd:0.0f];
     [self.curProgress addObserver:self forKeyPath:@"fractionCompleted" options:(NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld) context:nil];
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context {
     CGFloat new = [change[@"new"] doubleValue];
-    self.frontCircleLayer.strokeEnd = new < 0.0f ? 0.0f : (new > 1.0f ? 1.0f :new);
+    self.maskLayer.strokeEnd = new < 0.0f ? 0.0f : (new > 1.0f ? 1.0f :new);
     if (new >= 1.0f) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             if (self.completion) {
@@ -78,22 +82,147 @@
         });
     }
 }
-#pragma mark - Private Method
-- (void)_reloadFrontCircleLayerWithStrokeEnd:(CGFloat)strokeEnd {
-    [self.frontCircleLayer removeAnimationForKey:@"strokeEnd"];
-    [self.frontCircleLayer removeFromSuperlayer];
-    CGFloat radius = MIN(self.frame.size.width, self.frame.size.height) * kRadiusProportion * 0.5;
-    UIBezierPath *path = [UIBezierPath bezierPathWithArcCenter:CGPointMake(self.frame.size.width * 0.5, self.frame.size.height * 0.5) radius:radius startAngle:- 0.5 * M_PI endAngle:1.5 * M_PI clockwise:YES];
-    _frontCircleLayer = [CAShapeLayer layer];
-    _frontCircleLayer.fillColor = [UIColor clearColor].CGColor;
-    _frontCircleLayer.strokeColor = [self.fillColor isKindOfClass:[UIColor class]] ? self.fillColor.CGColor : [UIColor whiteColor].CGColor;
-    _frontCircleLayer.path = path.CGPath;
-    _frontCircleLayer.strokeStart = 0.0f;
-    _frontCircleLayer.strokeEnd = MIN(1.0f, MAX(0.0f, strokeEnd));
-    _frontCircleLayer.lineWidth = 2.0f;
-    [self.layer addSublayer:self.frontCircleLayer];
+
+- (void)setGradient:(BOOL)gradient {
+    _gradient = gradient;
+    [self _reloadCircleSubLayer];
 }
 
+- (void)setFillColors:(NSArray<UIColor *> *)fillColors {
+    _fillColors = [fillColors copy];
+    [self _reloadCircleSubLayer];
+}
+#pragma mark - Private Method
+
+- (void)_reloadCircleLayerWithStrokeEnd:(CGFloat)strokeEnd {
+    [self.maskLayer removeAnimationForKey:@"strokeEnd"];
+    [self.maskLayer removeFromSuperlayer];
+    [self.circleLayer removeFromSuperlayer];
+    _circleLayer = [CALayer layer];
+    _circleLayer.backgroundColor = [UIColor clearColor].CGColor;
+    CGFloat radius = MIN(self.frame.size.width, self.frame.size.height) * kRadiusProportion * 0.5;
+    _circleLayer.frame = CGRectMake(self.frame.size.width * 0.5 - radius, self.frame.size.height * 0.5 - radius, radius * 2, radius * 2);
+    [self _reloadLeftCircleLayerWithRect:self.circleLayer.frame superLayer:self.circleLayer];
+    [self _reloadRightCircleLayerWithRect:self.circleLayer.frame superLayer:self.circleLayer];
+    [self.maskLayer removeAnimationForKey:@"strokeEnd"];
+    [self.maskLayer removeFromSuperlayer];
+    _maskLayer = [self _reloadMaskLayerWithStrokeEnd:strokeEnd superLayer:self.circleLayer];
+    [self.layer addSublayer:self.circleLayer];
+}
+
+- (void)_reloadCircleSubLayer {
+    CALayer *layer = self.circleLayer;
+    [self _reloadLeftCircleLayerWithRect:layer.frame superLayer:layer];
+    [self _reloadRightCircleLayerWithRect:layer.frame superLayer:layer];
+}
+
+- (CAShapeLayer *)_reloadMaskLayerWithStrokeEnd:(CGFloat)strokeEnd superLayer:(CALayer*)superLayer{
+    CGFloat radius = MIN(self.frame.size.width, self.frame.size.height) * kRadiusProportion * 0.5;
+    UIBezierPath *path = [UIBezierPath bezierPathWithArcCenter:CGPointMake(superLayer.frame.size.width * 0.5, superLayer.frame.size.height * 0.5) radius:radius - kCircleLineWidth * 0.5 startAngle:- 0.5 * M_PI endAngle:1.5 * M_PI clockwise:YES];
+    CAShapeLayer *maskLayer = [CAShapeLayer layer];
+    maskLayer.fillColor = [UIColor clearColor].CGColor;
+    maskLayer.strokeColor = [self.fillColor isKindOfClass:[UIColor class]] ? self.fillColor.CGColor : [UIColor whiteColor].CGColor;
+    maskLayer.path = path.CGPath;
+    maskLayer.strokeStart = 0.0f;
+    maskLayer.strokeEnd = MIN(1.0f, MAX(0.0f, strokeEnd));
+    maskLayer.lineWidth = kCircleLineWidth;
+    superLayer.mask = maskLayer;
+    return maskLayer;
+}
+
+- (void)_reloadLeftCircleLayerWithRect:(CGRect)frame superLayer:(CALayer*)superLayer {
+    [self.leftCircleLayer removeFromSuperlayer];
+    _leftCircleLayer = [CAGradientLayer layer];
+    _leftCircleLayer.frame = CGRectMake(0, 0, frame.size.width * 0.5, frame.size.height);
+    _leftCircleLayer.startPoint = CGPointMake(0.0, 1.0);
+    _leftCircleLayer.endPoint = CGPointMake(0.0, 0.0);
+    NSArray *colorAry = [self _fixFillColors:self.fillColors];
+    if (self.isGradient) {
+        NSMutableArray *curColorAry = [NSMutableArray array];
+        NSUInteger start = colorAry.count / 2;
+        NSUInteger end = colorAry.count;
+        [colorAry enumerateObjectsUsingBlock:^(UIColor*  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+            if (idx >= start && idx < end) {
+                [curColorAry addObject:(__bridge id _Nonnull)obj.CGColor];
+            }
+        }];
+        if (curColorAry.count == 1) {
+            [curColorAry addObject:[curColorAry lastObject]];
+        }
+        _leftCircleLayer.colors = curColorAry;
+        if (curColorAry.count > 2) {
+            CGFloat step = 1.0 / (curColorAry.count - 1);
+            NSMutableArray *positions = [NSMutableArray array];
+            for (int i = 0; i < curColorAry.count; i++) {
+                [positions addObject:[NSNumber numberWithFloat:step * i]];
+                _leftCircleLayer.locations = positions;
+            }
+        }
+    } else {
+        CGColorRef color = [self.fillColor isKindOfClass:[UIColor class]] ? self.fillColor.CGColor : [UIColor whiteColor].CGColor;
+        _leftCircleLayer.colors = [NSArray arrayWithObjects:(__bridge id _Nonnull)(color),(__bridge id _Nonnull)(color), nil];
+    }
+    [superLayer addSublayer:self.leftCircleLayer];
+}
+
+- (void)_reloadRightCircleLayerWithRect:(CGRect)frame superLayer:(CALayer*)superLayer {
+    [self.rightCircleLayer removeFromSuperlayer];
+    _rightCircleLayer = [CAGradientLayer layer];
+    _rightCircleLayer.frame = CGRectMake(frame.size.width * 0.5, 0, frame.size.width * 0.5, frame.size.height);
+    _rightCircleLayer.startPoint = CGPointMake(0.0, 0.0);
+    _rightCircleLayer.endPoint = CGPointMake(0.0, 1.0);
+    NSArray *colorAry = [self _fixFillColors:self.fillColors];
+    if (self.isGradient) {
+        NSMutableArray *curColorAry = [NSMutableArray array];
+        NSUInteger start = 0;
+        NSUInteger end = colorAry.count / 2;
+        [colorAry enumerateObjectsUsingBlock:^(UIColor*  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+            if (idx >= start && idx < end) {
+                [curColorAry addObject:(__bridge id _Nonnull)obj.CGColor];
+            }
+        }];
+        if (curColorAry.count == 1) {
+            [curColorAry addObject:[curColorAry lastObject]];
+        }
+        _rightCircleLayer.colors = curColorAry;
+        if (curColorAry.count > 2) {
+            CGFloat step = 1.0 / (curColorAry.count - 1);
+            NSMutableArray *positions = [NSMutableArray array];
+            for (int i = 0; i < curColorAry.count; i++) {
+                [positions addObject:[NSNumber numberWithFloat:step * i]];
+                _rightCircleLayer.locations = positions;
+            }
+        }
+    } else {
+        CGColorRef color = [self.fillColor isKindOfClass:[UIColor class]] ? self.fillColor.CGColor : [UIColor whiteColor].CGColor;
+        
+        _rightCircleLayer.colors = [NSArray arrayWithObjects:(__bridge id _Nonnull)(color),(__bridge id _Nonnull)(color), nil];
+    }
+    [superLayer addSublayer:self.rightCircleLayer];
+}
+
+- (NSArray *)_fixFillColors:(NSArray *)fillColors {
+    NSMutableArray *array = [NSMutableArray array];
+    [self.fillColors enumerateObjectsUsingBlock:^(UIColor *  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        if ([obj isKindOfClass:[UIColor class]]) {
+            [array addObject:obj];
+        }
+    }];
+    if (array.count <= 0) {
+        [array addObject:[UIColor whiteColor]];
+        [array addObject:[UIColor whiteColor]];
+    }
+    NSUInteger index = array.count / 2;
+    UIColor *color = [array objectAtIndex:index];
+    if (array.count % 2 == 1) {
+        //奇数个
+        [array insertObject:color atIndex:index];
+    } else {
+        [array insertObject:color atIndex:index];
+        [array insertObject:color atIndex:index];
+    }
+    return [array copy];
+}
 #pragma mark - CAAnimationDelegate
 - (void)animationDidStop:(CABasicAnimation *)anim finished:(BOOL)flag {
     if ([anim.toValue isEqual:@(1.0)]) {

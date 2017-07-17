@@ -28,8 +28,10 @@
 #import "MNProgressCommonDefines.h"
 
 @interface MNCircleProgressView : UIView
-
+@property (nonatomic, assign, getter=isGradient) BOOL gradient;
+//if gradient equals NO, use fillColor,otherwise use fillColors. default color is white
 @property (nonatomic, strong) UIColor *fillColor;
+@property (nonatomic, copy) NSArray<UIColor*> *fillColors;
 
 - (void)startAnimationWithCountDown:(CGFloat)countDown completion:(MNProgressCompletionBlock)completion;
 - (void)startAnimationWithProgress:(NSProgress *)progress completion:(MNProgressCompletionBlock)completion;
